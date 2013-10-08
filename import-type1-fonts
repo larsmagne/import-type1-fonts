@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# This takes a type1 font and converts it into something TeX can use.
+#
+# Unpack the type1 zip file.  There will be lots of files called
+# stuff like LALAI.afm and LALAI.pfb.  Rename these to files called
+# pfbi8a.afm and the like.  The naming convention is
+#
+# First character - foundry
+# second and third - name of font
+# Then b/bi/r/ri for bold, bold/italic, normal, normal/italic
+# and then 8a
+#
+# Then run this script from the directory where the font files are.
+# Like this, for instance:
+# cd /tmp/futura
+# import-type1-fonts pfu adobe/futura
+
+family=$1
+path=$2
+
+latex `kpsewhich fontinst.sty`<<EOF
+\latinfamily{$family}{}\bye
+
+EOF
+
+for X in *.pl; do pltotf $X; done 
+for X in *.vpl; do vptovf $X; done 
+
+rm *.vpl *.pl *.mtx
+
+if [ ! -d /usr/share/texmf/fonts/afm/$path ]; then
+    mkdir -p /usr/share/texmf/fonts/afm/$path
+fi
+cp *.afm /usr/share/texmf/fonts/afm/$path
+
+if [ ! -d /usr/share/texmf/fonts/tfm/$path ]; then
+    mkdir -p /usr/share/texmf/fonts/tfm/$path
+fi
+cp *.tfm /usr/share/texmf/fonts/tfm/$path
+
+if [ ! -d /usr/share/texmf/fonts/type1/$path ]; then
+    mkdir -p /usr/share/texmf/fonts/type1/$path
+fi
+cp *.pfb /usr/share/texmf/fonts/type1/$path
+cp *.pfa /usr/share/texmf/fonts/type1/$path
+
+if [ ! -d /usr/share/texmf/fonts/vf/$path ]; then
+    mkdir -p /usr/share/texmf/fonts/vf/$path
+fi
+cp *.vf /usr/share/texmf/fonts/vf/$path
+
+if [ -d /usr/share/texmf-texlive/tex/latex ]; then
+  cp *.fd /usr/share/texmf-texlive/tex/latex/psnfss
+else
+  cp *.fd /usr/share/texmf/tex/latex/psnfss
+fi
+
+for i in *.afm; do
+    name=`sed "s///" < $i | grep "^FontName " | awk '{ print $2; }'`
+    base=`echo $i | sed 's/8a.*//'`
+    if [ -e "${base}8a.pfb" ]; then
+	file="${base}8a.pfb"
+    else
+	file="${base}8a.pfa"
+    fi
+    line="${base}8r	$name <8r.enc <$file \"TeXBase1Encoding ReEncodeFont\"" 
+    echo $line
+    echo $line >> `kpsewhich psfonts.map`
+done
+
+texhash
+
+rm *.fd *.log *.tfm *.vf
